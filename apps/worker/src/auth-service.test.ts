@@ -64,7 +64,8 @@ test("OAuth state is random, bound to a live admin session, and one-time", async
   const started = await service.beginOAuth(login.token);
   assert.equal(started.ok, true);
   if (!started.ok) return;
-  assert.equal(await service.consumeOAuthState(started.state), true);
+  const sessionDigest = await service.consumeOAuthStateSession(started.state);
+  assert.match(sessionDigest ?? "", /^[a-f0-9]{64}$/);
   assert.equal(await service.consumeOAuthState(started.state), false);
   await service.logout(login.token);
   const second = await service.beginOAuth(login.token);
