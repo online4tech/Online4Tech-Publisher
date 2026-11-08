@@ -124,3 +124,17 @@ Before deploying the Worker, create a Cloudflare Hyperdrive configuration pointi
 The OAuth callback now exchanges the authorization code, checks granted permissions, discovers Facebook Pages and linked Instagram professional accounts, encrypts tokens using the same AES-256-GCM envelope as the Node API, and persists records in a transaction. Publishing remains disabled. Runtime equivalence is not yet proven until Hyperdrive is bound and the Worker is tested against Meta in staging.
 
 The Worker uses an asynchronous PBKDF2-SHA256 password verifier (600,000 iterations) to avoid the synchronous scrypt work in the Node API during a request. Generate the Worker-only hash locally with `pnpm admin:hash:worker`, then set the output as the Cloudflare Worker secret `ADMIN_PASSWORD_HASH`. Do not reuse or overwrite the Node API's existing scrypt hash, and do not send the generated hash in chat.
+
+
+## Manual staging deployment
+
+The repository now has a manual-only workflow at `.github/workflows/deploy-worker.yml`. It runs type checks, API and Worker tests, builds the frontend and Worker, then deploys only the `online4tech-publisher-staging` Worker. It does not deploy on every push.
+
+Before using **Actions → Deploy Publisher Worker (staging) → Run workflow**, configure:
+
+- Repository **Variables**: `HYPERDRIVE_ID` (the Hyperdrive resource ID; not a password).
+- Repository **Secrets**: `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- Cloudflare Worker runtime binding: the workflow injects the `HYPERDRIVE` binding from `HYPERDRIVE_ID` at deploy time.
+- Cloudflare Worker runtime variables/secrets: set the application values listed above in the Worker settings before using the dashboard. The deployment workflow does not create or reveal runtime secrets.
+
+The first deployment only establishes the staging `workers.dev` URL. After that URL is known, set `APP_ORIGIN` and `META_OAUTH_REDIRECT_URI` to that exact origin/callback path, register the same callback URL in the Meta app, then run the staging smoke tests. Do not enable publishing as part of this deployment.
