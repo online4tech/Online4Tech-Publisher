@@ -32,6 +32,20 @@ The connection-test endpoint verifies only that Meta accepts the supplied token.
 - The API does not log the token or Meta response body.
 - No publishing or messaging action is enabled by this change.
 
+## Token encryption foundation
+
+The API includes an AES-256-GCM token-vault helper in `apps/api/src/security/token-vault.ts`. It uses a fresh 96-bit IV per encryption, an authentication tag, and a versioned envelope. It rejects malformed keys and tampered ciphertext.
+
+Generate a 32-byte key locally with:
+
+```bash
+openssl rand -base64 32
+```
+
+Store the result only in the backend runtime secret store as `TOKEN_ENCRYPTION_KEY`. Do not commit it, put it in frontend variables, or send it in chat. Losing the key makes previously encrypted tokens unrecoverable; rotating it requires a planned decrypt-and-re-encrypt migration.
+
+The helper is covered by automated tests. The current connection-test route does not yet persist Meta tokens; OAuth persistence must call this helper before writing `MetaConnection.encryptedToken`.
+
 ## Local infrastructure
 
 The Docker Compose services are for local development. Their ports are bound to `127.0.0.1` so PostgreSQL, Redis, and MinIO are not exposed to the local network by default. Do not reuse the sample local passwords in a hosted environment.
