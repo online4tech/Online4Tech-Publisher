@@ -205,7 +205,7 @@ export default {
 
     if (path === "/api/admin/meta/oauth/start" && request.method === "GET") {
       if (!sameOrigin(request, env)) return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
-      if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID || !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY || !env.HYPERDRIVE) {
+      if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID || !env.META_OAUTH_REDIRECT_URI || !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY || !env.HYPERDRIVE) {
         return json({ error: "META_OAUTH_NOT_CONFIGURED" }, 503);
       }
       try {
@@ -238,7 +238,7 @@ export default {
       }
       if (
         !env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID ||
-        !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY ||
+        !env.META_OAUTH_REDIRECT_URI || !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY ||
         !env.HYPERDRIVE
       ) {
         return redirectToApp(request, env, "error", "server_configuration_incomplete");
