@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum TargetStatus {
+  PENDING
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  NEEDS_REAUTH
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id          String       @id @default(cuid())
+  email       String       @unique
+  displayName String?
+  passwordHash String?
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+  connections MetaConnection[]
+  posts       Post[]
+  auditEvents AuditEvent[]
+}
+
+model MetaConnection {
+  id                 String           @id @default(cuid())
+  userId             String
+  metaUserId         String?
+  status             ConnectionStatus @default(NEEDS_REAUTH)
+  encryptedToken     String?
+  tokenExpiresAt     DateTime?        @db.Timestamptz(3)
+  scopes             String[]         @default([])
+  connectedAt        DateTime?        @db.Timestamptz(3)
+  lastValidatedAt    DateTime?        @db.Timestamptz(3)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accounts           SocialAccount[]
+  @@index([userId, status])
+}
+
+model SocialAccount {
+  id             String         @id @default(cuid())
+  connectionId   String
+  platform       Platform
+  platformId     String
+  name           String
+  username       String?
+  category        String?
+  isActive       Boolean        @default(true)
+  metadata       Json?
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
+  connection     MetaConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  postTargets    PostTarget[]
+  analytics      AnalyticsSnapshot[]
+  @@unique([platform, platformId])
+  @@index([connectionId, isActive])
+}
+
+model Post {
+  id          String      @id @default(cuid())
+  userId      String
+  caption     String      @default("") @db.Text
+  status      PostStatus  @default(DRAFT)
+  scheduledAt DateTime?   @db.Timestamptz(3)
+  publishedAt DateTime?   @db.Timestamptz(3)
+  timeZone    String      @default("Africa/Cairo")
+  campaign    String?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @db.Timestamptz(3)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targets     PostTarget[]
+  media       PostMedia[]
+  jobs        ScheduledJob[]
+  logs        PublishingLog[]
+  @@index([userId, status, scheduledAt])
+  @@index([campaign])
+}
+
+model PostTarget {
+  id               String       @id @default(cuid())
+  postId           String
+  socialAccountId  String
+  platform         Platform
+  status           TargetStatus @default(PENDING)
+  externalPostId   String?
+  containerId      String?
+  publishedAt      DateTime?    @db.Timestamptz(3)
+  lastErrorCode    String?
+  lastErrorMessage String?      @db.Text
+  attemptCount     Int          @default(0)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  post             Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount    SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Restrict)
+  logs             PublishingLog[]
+  @@unique([postId, socialAccountId])
+  @@index([status, updatedAt])
+}
+
+model MediaAsset {
+  id           String     @id @default(cuid())
+  storageKey   String     @unique
+  originalName String
+  mimeType     String
+  sizeBytes    BigInt
+  width        Int?
+  height       Int?
+  durationMs   Int?
+  checksum     String?
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  postMedia    PostMedia[]
+}
+
+model PostMedia {
+  id           String     @id @default(cuid())
+  postId       String
+  mediaAssetId String
+  sortOrder    Int        @default(0)
+  platform     Platform?
+  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+  @@unique([postId, mediaAssetId, platform])
+  @@index([postId, sortOrder])
+}
+
+model ScheduledJob {
+  id             String    @id @default(cuid())
+  postId         String
+  targetId       String?
+  idempotencyKey String    @unique
+  status         JobStatus @default(QUEUED)
+  runAt          DateTime  @db.Timestamptz(3)
+  lockedAt       DateTime? @db.Timestamptz(3)
+  completedAt    DateTime? @db.Timestamptz(3)
+  attempts       Int       @default(0)
+  lastError      String?   @db.Text
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+  post           Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@index([status, runAt])
+  @@index([postId])
+}
+
+model PublishingLog {
+  id          String      @id @default(cuid())
+  postId      String
+  targetId    String?
+  level       String      @default("info")
+  event       String
+  message     String      @db.Text
+  details     Json?
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  post        Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  target      PostTarget? @relation(fields: [targetId], references: [id], onDelete: SetNull)
+  @@index([postId, createdAt])
+}
+
+model AnalyticsSnapshot {
+  id             String        @id @default(cuid())
+  socialAccountId String
+  metric         String
+  value          Float?
+  unavailable    Boolean       @default(false)
+  capturedAt     DateTime      @db.Timestamptz(3)
+  sourcePayload  Json?
+  socialAccount  SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  @@index([socialAccountId, metric, capturedAt])
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}
