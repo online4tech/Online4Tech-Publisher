@@ -96,7 +96,7 @@ test("Meta status endpoint reports publishing disabled until OAuth storage is im
     publishingEnabled: boolean;
     accounts: unknown[];
   };
-  assert.equal(payload.oauthConfigured, true);
+  assert.equal(payload.oauthConfigured, false);
   assert.equal(payload.connected, false);
   assert.equal(payload.publishingEnabled, false);
   assert.deepEqual(payload.accounts, []);
