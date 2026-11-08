@@ -5,11 +5,21 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { z } from "zod";
 import { prisma } from "@o4t/db";
+import {
+  clearSessionCookie,
+  createAdminSession,
+  readCookie,
+  sessionCookie,
+  verifyAdminPassword,
+  verifyAdminSession,
+} from "./security/admin-auth.js";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   APP_URL: z.string().url().default("http://localhost:5173"),
+  ADMIN_PASSWORD_HASH: z.string().optional(),
+  ADMIN_SESSION_SECRET: z.string().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_CONFIG_ID: z.string().optional(),
@@ -26,10 +36,40 @@ const app = Fastify({
   trustProxy: env.NODE_ENV === "production",
 });
 
+const expectedOrigin = new URL(env.APP_URL).origin;
+const secureCookies = env.NODE_ENV === "production";
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_LIMIT = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
 await app.register(helmet);
 await app.register(cors, {
-  origin: env.APP_URL,
+  origin: expectedOrigin,
   credentials: true,
+});
+
+function adminSessionIsValid(request: { headers: { cookie?: string } }): boolean {
+  return verifyAdminSession(
+    readCookie(request.headers.cookie),
+    env.ADMIN_SESSION_SECRET ?? "",
+  );
+}
+
+app.addHook("preHandler", async (request, reply) => {
+  const path = request.url.split("?")[0];
+  if (!path.startsWith("/api/admin/")) return;
+
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
+    const origin = request.headers.origin;
+    if (origin !== expectedOrigin) {
+      return reply.code(403).send({ error: "ORIGIN_NOT_ALLOWED", message: "الطلب مرفوض" });
+    }
+  }
+
+  if (path === "/api/admin/login" || path === "/api/admin/logout") return;
+  if (!adminSessionIsValid(request)) {
+    return reply.code(401).send({ error: "ADMIN_AUTH_REQUIRED", message: "سجّل الدخول للمتابعة" });
+  }
 });
 
 app.get("/api/health", async () => ({
@@ -37,6 +77,52 @@ app.get("/api/health", async () => ({
   service: "online4tech-publisher-api",
   timestamp: new Date().toISOString(),
 }));
+
+app.get("/api/admin/session", async () => ({
+  authenticated: true,
+  expiresInSeconds: 8 * 60 * 60,
+}));
+
+app.post("/api/admin/login", async (request, reply) => {
+  if (!env.ADMIN_PASSWORD_HASH || !env.ADMIN_SESSION_SECRET) {
+    return reply.code(503).send({
+      error: "ADMIN_AUTH_NOT_CONFIGURED",
+      message: "إعداد الدخول الإداري غير مكتمل على السيرفر",
+    });
+  }
+
+  const body = z.object({ password: z.string().min(1).max(256) }).safeParse(request.body);
+  if (!body.success) {
+    return reply.code(400).send({ error: "INVALID_REQUEST", message: "بيانات الدخول غير صحيحة" });
+  }
+
+  const now = Date.now();
+  const attempt = loginAttempts.get(request.ip);
+  if (attempt && attempt.resetAt > now && attempt.count >= LOGIN_LIMIT) {
+    return reply.code(429).send({
+      error: "LOGIN_RATE_LIMITED",
+      message: "محاولات دخول كثيرة. انتظر 15 دقيقة ثم حاول مرة أخرى.",
+    });
+  }
+
+  if (!verifyAdminPassword(body.data.password, env.ADMIN_PASSWORD_HASH)) {
+    const next = !attempt || attempt.resetAt <= now
+      ? { count: 1, resetAt: now + LOGIN_WINDOW_MS }
+      : { ...attempt, count: attempt.count + 1 };
+    loginAttempts.set(request.ip, next);
+    return reply.code(401).send({ error: "INVALID_CREDENTIALS", message: "كلمة المرور غير صحيحة" });
+  }
+
+  loginAttempts.delete(request.ip);
+  const token = createAdminSession(env.ADMIN_SESSION_SECRET);
+  reply.header("Set-Cookie", sessionCookie(token, secureCookies));
+  return { authenticated: true, expiresInSeconds: 8 * 60 * 60 };
+});
+
+app.post("/api/admin/logout", async (_request, reply) => {
+  reply.header("Set-Cookie", clearSessionCookie(secureCookies));
+  return { authenticated: false };
+});
 
 app.get("/api/meta/status", async () => ({
   provider: "meta",
