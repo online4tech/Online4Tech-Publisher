@@ -75,20 +75,21 @@ model MetaConnection {
 }
 
 model SocialAccount {
-  id             String         @id @default(cuid())
-  connectionId   String
-  platform       Platform
-  platformId     String
-  name           String
-  username       String?
-  category        String?
-  isActive       Boolean        @default(true)
-  metadata       Json?
-  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime       @updatedAt @db.Timestamptz(3)
-  connection     MetaConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  postTargets    PostTarget[]
-  analytics      AnalyticsSnapshot[]
+  id                    String         @id @default(cuid())
+  connectionId          String
+  platform              Platform
+  platformId            String
+  name                  String
+  username              String?
+  category              String?
+  encryptedAccessToken  String?
+  isActive              Boolean        @default(true)
+  metadata              Json?
+  createdAt             DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime       @updatedAt @db.Timestamptz(3)
+  connection            MetaConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  postTargets           PostTarget[]
+  analytics             AnalyticsSnapshot[]
   @@unique([platform, platformId])
   @@index([connectionId, isActive])
 }
