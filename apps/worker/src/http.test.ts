@@ -101,3 +101,40 @@ test("Meta status endpoint reports storage missing and keeps publishing disabled
   assert.equal(payload.publishingEnabled, false);
   assert.deepEqual(payload.accounts, []);
 });
+
+
+test("OAuth callback rejects invalid state without exchanging a code", async (t) => {
+  t.mock.method(globalThis, "fetch", async () =>
+    new Response(JSON.stringify({ result: null }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  const state = "A".repeat(43);
+  const response = await worker.fetch(
+    new Request(`https://publisher.example.workers.dev/api/meta/oauth/callback?state=${state}&code=not-a-real-code`),
+    env,
+  );
+  assert.equal(response.status, 302);
+  const location = new URL(response.headers.get("Location")!);
+  assert.equal(location.searchParams.get("meta"), "error");
+  assert.equal(location.searchParams.get("reason"), "invalid_or_expired_state");
+});
+
+test("OAuth start rejects callback URLs on a different origin", async () => {
+  const unsafeEnv: WorkerEnv = {
+    ...env,
+    META_APP_ID: "test-app-id",
+    META_APP_SECRET: "test-app-secret",
+    META_CONFIG_ID: "test-config-id",
+    META_OAUTH_REDIRECT_URI: "https://attacker.example/api/meta/oauth/callback",
+    TOKEN_ENCRYPTION_KEY: "not-a-real-key",
+    HYPERDRIVE: { connectionString: "postgresql://invalid" },
+  };
+  const response = await worker.fetch(
+    new Request("https://publisher.example.workers.dev/api/admin/meta/oauth/start"),
+    unsafeEnv,
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "META_OAUTH_NOT_CONFIGURED" });
+});
