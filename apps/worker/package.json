@@ -7,7 +7,7 @@
     "dev": "tsx watch src/worker.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/auth-service.test.ts"
+    "test": "tsx --test src/auth-service.test.ts src/http.test.ts"
   },
   "dependencies": {
     "bullmq": "5.56.9",
