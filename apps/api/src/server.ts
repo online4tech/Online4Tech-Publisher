@@ -3,23 +3,23 @@ import { timingSafeEqual } from "node:crypto";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import Redis from "ioredis";
 import { z } from "zod";
 import { prisma } from "@o4t/db";
 import {
   clearSessionCookie,
-  createAdminSession,
   readCookie,
   sessionCookie,
   verifyAdminPassword,
-  verifyAdminSession,
 } from "./security/admin-auth.js";
+import { createRedisSessionStore, ADMIN_SESSION_TTL_SECONDS } from "./security/redis-session-store.js";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   APP_URL: z.string().url().default("http://localhost:5173"),
+  REDIS_URL: z.string().url().default("redis://localhost:6379"),
   ADMIN_PASSWORD_HASH: z.string().optional(),
-  ADMIN_SESSION_SECRET: z.string().optional(),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_CONFIG_ID: z.string().optional(),
@@ -35,25 +35,20 @@ const app = Fastify({
   logger: { level: env.NODE_ENV === "production" ? "info" : "debug" },
   trustProxy: env.NODE_ENV === "production",
 });
-
+const redis = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+const sessions = createRedisSessionStore(redis);
 const expectedOrigin = new URL(env.APP_URL).origin;
 const secureCookies = env.NODE_ENV === "production";
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const LOGIN_LIMIT = 5;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+redis.on("error", (error) => app.log.error({ err: error }, "Redis connection error"));
 
 await app.register(helmet);
 await app.register(cors, {
   origin: expectedOrigin,
   credentials: true,
 });
-
-function adminSessionIsValid(request: { headers: { cookie?: string } }): boolean {
-  return verifyAdminSession(
-    readCookie(request.headers.cookie),
-    env.ADMIN_SESSION_SECRET ?? "",
-  );
-}
 
 app.addHook("preHandler", async (request, reply) => {
   const path = request.url.split("?")[0];
@@ -67,8 +62,14 @@ app.addHook("preHandler", async (request, reply) => {
   }
 
   if (path === "/api/admin/login" || path === "/api/admin/logout") return;
-  if (!adminSessionIsValid(request)) {
-    return reply.code(401).send({ error: "ADMIN_AUTH_REQUIRED", message: "سجّل الدخول للمتابعة" });
+
+  try {
+    const token = readCookie(request.headers.cookie);
+    if (!(await sessions.verify(token))) {
+      return reply.code(401).send({ error: "ADMIN_AUTH_REQUIRED", message: "سجّل الدخول للمتابعة" });
+    }
+  } catch {
+    return reply.code(503).send({ error: "SESSION_STORE_UNAVAILABLE", message: "خدمة الجلسات غير متاحة مؤقتًا" });
   }
 });
 
@@ -80,11 +81,11 @@ app.get("/api/health", async () => ({
 
 app.get("/api/admin/session", async () => ({
   authenticated: true,
-  expiresInSeconds: 8 * 60 * 60,
+  expiresInSeconds: ADMIN_SESSION_TTL_SECONDS,
 }));
 
 app.post("/api/admin/login", async (request, reply) => {
-  if (!env.ADMIN_PASSWORD_HASH || !env.ADMIN_SESSION_SECRET) {
+  if (!env.ADMIN_PASSWORD_HASH) {
     return reply.code(503).send({
       error: "ADMIN_AUTH_NOT_CONFIGURED",
       message: "إعداد الدخول الإداري غير مكتمل على السيرفر",
@@ -96,32 +97,43 @@ app.post("/api/admin/login", async (request, reply) => {
     return reply.code(400).send({ error: "INVALID_REQUEST", message: "بيانات الدخول غير صحيحة" });
   }
 
-  const now = Date.now();
-  const attempt = loginAttempts.get(request.ip);
-  if (attempt && attempt.resetAt > now && attempt.count >= LOGIN_LIMIT) {
+  let rate;
+  try {
+    rate = await sessions.consumeLoginAttempt(request.ip, LOGIN_LIMIT, LOGIN_WINDOW_MS);
+  } catch {
+    return reply.code(503).send({ error: "RATE_LIMIT_STORE_UNAVAILABLE", message: "تعذر التحقق من محاولات الدخول. حاول لاحقًا." });
+  }
+
+  if (!rate.allowed) {
+    reply.header("Retry-After", String(Math.max(1, Math.ceil(rate.retryAfterMs / 1000))));
     return reply.code(429).send({
       error: "LOGIN_RATE_LIMITED",
-      message: "محاولات دخول كثيرة. انتظر 15 دقيقة ثم حاول مرة أخرى.",
+      message: "محاولات دخول كثيرة. انتظر قليلًا ثم حاول مرة أخرى.",
     });
   }
 
   if (!verifyAdminPassword(body.data.password, env.ADMIN_PASSWORD_HASH)) {
-    const next = !attempt || attempt.resetAt <= now
-      ? { count: 1, resetAt: now + LOGIN_WINDOW_MS }
-      : { ...attempt, count: attempt.count + 1 };
-    loginAttempts.set(request.ip, next);
     return reply.code(401).send({ error: "INVALID_CREDENTIALS", message: "كلمة المرور غير صحيحة" });
   }
 
-  loginAttempts.delete(request.ip);
-  const token = createAdminSession(env.ADMIN_SESSION_SECRET);
-  reply.header("Set-Cookie", sessionCookie(token, secureCookies));
-  return { authenticated: true, expiresInSeconds: 8 * 60 * 60 };
+  try {
+    await sessions.clearLoginAttempts(request.ip);
+    const token = await sessions.create();
+    reply.header("Set-Cookie", sessionCookie(token, secureCookies));
+    return { authenticated: true, expiresInSeconds: ADMIN_SESSION_TTL_SECONDS };
+  } catch {
+    return reply.code(503).send({ error: "SESSION_STORE_UNAVAILABLE", message: "تعذر إنشاء جلسة آمنة. حاول مرة أخرى." });
+  }
 });
 
-app.post("/api/admin/logout", async (_request, reply) => {
-  reply.header("Set-Cookie", clearSessionCookie(secureCookies));
-  return { authenticated: false };
+app.post("/api/admin/logout", async (request, reply) => {
+  try {
+    await sessions.revoke(readCookie(request.headers.cookie));
+    reply.header("Set-Cookie", clearSessionCookie(secureCookies));
+    return { authenticated: false };
+  } catch {
+    return reply.code(503).send({ error: "SESSION_STORE_UNAVAILABLE", message: "تعذر إنهاء الجلسة على الخادم. حاول مرة أخرى." });
+  }
 });
 
 app.get("/api/meta/status", async () => ({
@@ -196,11 +208,11 @@ app.post("/api/meta/connection-test", async (request, reply) => {
 
 app.get("/api/ready", async (_request, reply) => {
   try {
-    await prisma.$connect();
-    return { status: "ready", database: "connected" };
+    await Promise.all([prisma.$connect(), redis.ping()]);
+    return { status: "ready", database: "connected", redis: "connected" };
   } catch (error) {
-    app.log.error({ err: error }, "Database readiness check failed");
-    return reply.code(503).send({ status: "not_ready", database: "unavailable" });
+    app.log.error({ err: error }, "API readiness check failed");
+    return reply.code(503).send({ status: "not_ready", database: "or_redis_unavailable" });
   }
 });
 
@@ -218,7 +230,7 @@ app.setErrorHandler((error, _request, reply) => {
 
 const close = async () => {
   await app.close();
-  await prisma.$disconnect();
+  await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
   process.exit(0);
 };
 
@@ -226,9 +238,10 @@ process.on("SIGINT", close);
 process.on("SIGTERM", close);
 
 try {
+  await redis.connect();
   await app.listen({ host: "0.0.0.0", port: env.PORT });
 } catch (error) {
   app.log.error(error);
-  await prisma.$disconnect();
+  await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
   process.exit(1);
 }
