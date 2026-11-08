@@ -12,7 +12,8 @@
   "dependencies": {
     "bullmq": "5.56.9",
     "dotenv": "16.5.0",
-    "ioredis": "5.6.1"
+    "ioredis": "5.6.1",
+    "@o4t/db": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.13.10",
