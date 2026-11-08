@@ -443,6 +443,7 @@ app.get("/api/admin/meta/status", async () => {
     missingPermissions: META_REQUIRED_PERMISSIONS.filter((permission) => !granted.includes(permission)),
     facebookReady,
     instagramReady,
+    oauthConfigured: Boolean(env.META_APP_ID && env.META_APP_SECRET && env.META_CONFIG_ID && env.META_OAUTH_REDIRECT_URI && env.TOKEN_ENCRYPTION_KEY),
     publishingEnabled: false,
     accounts: connection?.accounts ?? [],
   };
