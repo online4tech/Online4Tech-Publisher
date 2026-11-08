@@ -15,6 +15,7 @@ const envSchema = z.object({
   META_CONFIG_ID: z.string().optional(),
   META_ACCESS_TOKEN: z.string().optional(),
   META_CONNECTION_TEST_KEY: z.string().optional(),
+  META_CONNECTION_TEST_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v27.0"),
   META_OAUTH_REDIRECT_URI: z.string().optional(),
 });
@@ -43,10 +44,16 @@ app.get("/api/meta/status", async () => ({
   appConfigured: Boolean(env.META_APP_ID && env.META_APP_SECRET && env.META_CONFIG_ID),
   tokenConfigured: Boolean(env.META_ACCESS_TOKEN),
   connectionTestProtected: Boolean(env.META_CONNECTION_TEST_KEY),
+  connectionTestEnabled: env.META_CONNECTION_TEST_ENABLED && env.NODE_ENV !== "production",
   connection: "not_tested",
 }));
 
 app.post("/api/meta/connection-test", async (request, reply) => {
+  // This temporary endpoint is deliberately unavailable in production.
+  if (env.NODE_ENV === "production" || !env.META_CONNECTION_TEST_ENABLED) {
+    return reply.code(404).send({ error: "NOT_FOUND", message: "المسار غير موجود" });
+  }
+
   if (!env.META_ACCESS_TOKEN || !env.META_CONNECTION_TEST_KEY) {
     return reply.code(503).send({
       error: "META_NOT_CONFIGURED",
