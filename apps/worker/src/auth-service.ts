@@ -1,4 +1,4 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 export const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
 export const LOGIN_LIMIT = 5;
@@ -18,16 +18,35 @@ export interface AuthStore {
 
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const sessionKey = (token: string) => SESSION_PREFIX + sha256(token);
-const safeEqual = (a: Buffer, b: Buffer) => a.length === b.length && timingSafeEqual(a, b);
+function safeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) difference |= a[index] ^ b[index];
+  return difference === 0;
+}
 
-export function verifyAdminPassword(password: string, encodedHash: string): boolean {
-  const [scheme, saltText, hashText, ...extra] = encodedHash.split("$");
-  if (scheme !== "scrypt" || !saltText || !hashText || extra.length) return false;
+export async function verifyAdminPassword(password: string, encodedHash: string): Promise<boolean> {
+  const [scheme, iterationsText, saltText, hashText, ...extra] = encodedHash.split("$");
+  if (scheme !== "pbkdf2-sha256" || !iterationsText || !saltText || !hashText || extra.length) return false;
   try {
+    const iterations = Number(iterationsText);
+    if (!Number.isSafeInteger(iterations) || iterations < 600_000 || iterations > 1_000_000) return false;
     const salt = Buffer.from(saltText, "base64url");
     const expected = Buffer.from(hashText, "base64url");
-    if (salt.length < 16 || expected.length !== 64) return false;
-    return safeEqual(scryptSync(password, salt, expected.length), expected);
+    if (salt.length < 16 || salt.length > 64 || expected.length !== 64) return false;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"],
+    );
+    const derived = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+      key,
+      expected.length * 8,
+    ));
+    return safeEqual(derived, expected);
   } catch {
     return false;
   }
@@ -58,7 +77,7 @@ export function createAuthService(store: AuthStore) {
       if (rate.count > LOGIN_LIMIT) {
         return { ok: false as const, status: 429, error: "LOGIN_RATE_LIMITED", retryAfterMs: Math.max(0, rate.ttlMs) };
       }
-      if (!verifyAdminPassword(password, passwordHash)) {
+      if (!(await verifyAdminPassword(password, passwordHash))) {
         return { ok: false as const, status: 401, error: "INVALID_CREDENTIALS" };
       }
       await store.delete(RATE_PREFIX + sha256(ip));
