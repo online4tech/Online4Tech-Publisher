@@ -1,0 +1,20 @@
+{
+  "name": "online4tech-publisher",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.12.1",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @o4t/web --filter @o4t/api dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @o4t/db db:generate",
+    "db:migrate": "pnpm --filter @o4t/db db:migrate",
+    "db:deploy": "pnpm --filter @o4t/db db:deploy",
+    "db:studio": "pnpm --filter @o4t/db db:studio"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "tsx": "4.19.4"
+  }
+}

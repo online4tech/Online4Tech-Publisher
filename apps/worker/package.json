@@ -1,0 +1,19 @@
+{
+  "name": "@o4t/worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "bullmq": "5.56.9",
+    "dotenv": "16.5.0",
+    "ioredis": "5.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10"
+  }
+}
