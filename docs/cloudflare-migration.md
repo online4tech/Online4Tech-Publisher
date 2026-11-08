@@ -14,11 +14,8 @@ No secrets, access tokens, database URLs, or encryption keys belong in Git.
 
 ## Target architecture
 
-- **Frontend:** keep the existing React/Vite app and GitHub Pages deployment.
-  Configure its API base URL to the deployed Worker only after staging tests.
-- **HTTP API and Meta OAuth:** Cloudflare Worker using Hono and Web APIs.
-  Hono provides a native Fetch handler for Workers; the existing Fastify server
-  starts a Node HTTP listener and will not be imported into the Worker entry.
+- **Frontend:** serve the React/Vite build through Cloudflare Worker Assets on the same `workers.dev` origin as the API, avoiding cross-origin admin cookies. Keep the GitHub Pages site separate and unchanged.
+- **HTTP API and Meta OAuth:** a native Cloudflare Worker Fetch handler using Web APIs; the existing Fastify server starts a Node HTTP listener and is not imported into the Worker entry.
 - **PostgreSQL:** retain the existing Supabase project and Prisma schema.
   Evaluate Cloudflare Hyperdrive in front of the existing Supabase Session
   Pooler connection. Use Prisma 6.19 with `@prisma/adapter-pg` and `pg`.
@@ -44,19 +41,19 @@ No secrets, access tokens, database URLs, or encryption keys belong in Git.
 
 - [x] Create a dedicated migration branch from the Meta OAuth feature branch.
 - [x] Record the target architecture and safeguards.
-- [ ] Keep PR #8 open and unmerged until the migration branch is reviewed.
+- [x] Keep PR #8 open and unmerged; migration work remains isolated from `main`.
 
 ### Stage 1 — Worker foundation
 
-- [ ] Add a Hono Fetch entry point and Wrangler configuration.
-- [ ] Add typed Worker bindings and environment validation.
-- [ ] Implement health checks and API error handling.
-- [ ] Add Worker-compatible tests and CI build checks.
+- [x] Add a native Fetch entry point and Wrangler configuration.
+- [x] Add typed Worker bindings for the current Worker routes; deployment binding IDs and secrets remain environment configuration.
+- [x] Implement health checks, same-origin checks, session endpoints, and API error handling.
+- [x] Add Worker service/HTTP/token-vault tests to CI (execution still needs confirmation).
 - [ ] Keep all publishing routes unavailable.
 
 ### Stage 2 — data access
 
-- [ ] Add Prisma's PostgreSQL driver adapter and a Worker-scoped client factory.
+- [x] Add Prisma 6.19 PostgreSQL driver adapter dependencies and a Hyperdrive-backed Worker client factory.
 - [ ] Configure Hyperdrive without committing its ID or database credentials.
 - [ ] Test Supabase Session Pooler connectivity, TLS, Prisma transactions,
       and existing migrations in staging.
@@ -65,8 +62,8 @@ No secrets, access tokens, database URLs, or encryption keys belong in Git.
 ### Stage 3 — sessions and OAuth
 
 - [ ] Replace ioredis session operations with Upstash REST operations.
-- [ ] Preserve atomic one-time OAuth state consumption and rate limits.
-- [ ] Port Meta OAuth start/callback and account discovery.
+- [x] Preserve atomic one-time OAuth state consumption, session binding, and rate limits.
+- [x] Port Meta OAuth start/callback, permission discovery, and encrypted account persistence (requires deployed secrets and Hyperdrive binding for runtime validation).
 - [ ] Verify cookie attributes, allowed origins, redirect URI, and token
       encryption under the Worker runtime.
 - [ ] Confirm that tokens never appear in responses or logs.
