@@ -30,3 +30,4 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: docker compose config --quiet
+      - run: docker compose build api worker
