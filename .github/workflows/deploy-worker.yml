@@ -68,4 +68,4 @@ jobs:
           EOF
 
       - name: Deploy staging Worker
-        run: pnpm --filter @o4t/worker deploy
+        run: pnpm --filter @o4t/worker run deploy
