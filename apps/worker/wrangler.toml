@@ -1,6 +1,7 @@
 name = "online4tech-publisher"
 main = "src/http.ts"
 compatibility_date = "2026-11-08"
+compatibility_flags = ["nodejs_compat"]
 
 [assets]
 directory = "../web/dist"
