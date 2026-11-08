@@ -1,9 +1,17 @@
 name: CI
 on:
   push:
-    branches: ["main", "setup/project-foundation"]
+    branches:
+      - "main"
+      - "setup/project-foundation"
+      - "feature/**"
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -20,4 +28,23 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm typecheck
+      - run: pnpm --filter @o4t/api test
       - run: pnpm build
+      - run: docker compose config --quiet
+      - run: docker compose build api worker
+      - run: docker compose up -d postgres redis api worker
+      - name: Smoke test API and worker
+        run: |
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:4000/api/ready; then
+              echo "API readiness check passed."
+              docker compose logs worker | grep -q "Redis connection established."
+              exit $?
+            fi
+            sleep 2
+          done
+          docker compose logs api worker
+          exit 1
+      - name: Stop local services
+        if: always()
+        run: docker compose down -v

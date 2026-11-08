@@ -51,3 +51,21 @@ The permissions above are a shortlist, not a final OAuth scope string. Endpoint 
 - [Instagram Platform — Content Publishing](https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/content-publishing)
 - [Pages API — Posts](https://developers.facebook.com/docs/pages-api/posts)
 - [Meta App Review](https://developers.facebook.com/docs/resp-plat-initiatives/individual-processes/app-review/)
+
+
+## Current app setup observations (from the configured Meta dashboard)
+
+The setup currently reported for this project uses a Login Configuration ID and a System User Access Token option. The permission names shown so far include:
+
+- `instagram_basic`
+- `instagram_content_publish`
+- `instagram_manage_comments`
+- `instagram_manage_messages`
+
+These names belong to the Instagram API with Facebook Login permission family. The Instagram Login flow uses a different permission family, including `instagram_business_basic` and `instagram_business_content_publish`. Do not mix the two flows, token types, or Graph API hosts. Meta's own Instagram API collection documents both configurations and their distinct permission sets:
+- [Meta Instagram API collection — Facebook Login](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api)
+- [Meta Instagram API collection — Instagram Login](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api?entity=request-23987686-3fe78620-2258-44b6-893f-42d76c7200d7)
+
+Before implementing Facebook Page publishing, verify that the active Login Configuration grants the required Page assets and permissions. In particular, the permissions reported so far do not include `pages_show_list` or `pages_manage_posts`; do not mark Facebook Page publishing as ready until the actual configuration and granted permissions confirm them.
+
+The presence of a System User Access Token option alone does not prove that the selected token is a Business Integration System User token with the correct Page and Instagram assets assigned. Verify the token model and assigned assets in the configuration itself before choosing the final discovery and publishing endpoints.

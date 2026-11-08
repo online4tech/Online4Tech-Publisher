@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: online4tech_publisher
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -41,10 +41,53 @@ services:
       MINIO_ROOT_USER: o4t_local
       MINIO_ROOT_PASSWORD: local_only_change_me
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: o4t-publisher-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      APP_URL: ${APP_URL:-http://localhost:5173}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/online4tech_publisher
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_CONFIG_ID: ${META_CONFIG_ID:-}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN:-}
+      META_CONNECTION_TEST_KEY: ${META_CONNECTION_TEST_KEY:-}
+      META_CONNECTION_TEST_ENABLED: ${META_CONNECTION_TEST_ENABLED:-false}
+      META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v27.0}
+      META_OAUTH_REDIRECT_URI: ${META_OAUTH_REDIRECT_URI:-}
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    container_name: o4t-publisher-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
