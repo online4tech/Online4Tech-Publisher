@@ -22,8 +22,8 @@ const json = (data: unknown, status = 200, headers?: HeadersInit) =>
 const clearCookie = () =>
   "o4t_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0";
 
-function redirectToApp(env: WorkerEnv, status: "connected" | "error", reason?: string) {
-  const origin = env.APP_ORIGIN || "https://online4tech-publisher.pages.dev";
+function redirectToApp(request: Request, env: WorkerEnv, status: "connected" | "error", reason?: string) {
+  const origin = env.APP_ORIGIN || new URL(request.url).origin;
   const target = new URL("/", origin);
   target.searchParams.set("meta", status);
   if (reason) target.searchParams.set("reason", reason);
@@ -119,16 +119,16 @@ export default {
       const state = url.searchParams.get("state") || undefined;
       try {
         const valid = await auth.consumeOAuthState(state);
-        if (!valid) return redirectToApp(env, "error", "invalid_or_expired_state");
+        if (!valid) return redirectToApp(request, env, "error", "invalid_or_expired_state");
       } catch {
-        return redirectToApp(env, "error", "state_store_unavailable");
+        return redirectToApp(request, env, "error", "state_store_unavailable");
       }
       if (url.searchParams.has("error") || !url.searchParams.get("code")) {
-        return redirectToApp(env, "error", "authorization_denied");
+        return redirectToApp(request, env, "error", "authorization_denied");
       }
       // Token exchange and account persistence are deliberately gated until
       // the Worker database adapter is installed and tested.
-      return redirectToApp(env, "error", "account_storage_migration_pending");
+      return redirectToApp(request, env, "error", "account_storage_migration_pending");
     }
 
     if (path.startsWith("/api/admin/") && !["GET", "HEAD", "OPTIONS"].includes(request.method)) {
