@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -13,6 +15,12 @@
     "build": "prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": { "@prisma/client": "6.19.0" },
-  "devDependencies": { "prisma": "6.19.0", "typescript": "5.8.3" }
+  "dependencies": {
+    "@prisma/client": "6.19.0"
+  },
+  "devDependencies": {
+    "prisma": "6.19.0",
+    "typescript": "5.8.3",
+    "@types/node": "22.13.10"
+  }
 }
