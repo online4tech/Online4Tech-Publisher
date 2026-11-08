@@ -58,6 +58,8 @@ services:
       APP_URL: ${APP_URL:-http://localhost:5173}
       REDIS_URL: redis://redis:6379
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      ADMIN_USER_EMAIL: ${ADMIN_USER_EMAIL:-publisher-admin@online4tech.invalid}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/online4tech_publisher
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
