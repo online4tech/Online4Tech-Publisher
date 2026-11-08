@@ -68,7 +68,7 @@ test("Meta status endpoint requires an admin session", async (t) => {
   assert.deepEqual(await response.json(), { error: "ADMIN_AUTH_REQUIRED" });
 });
 
-test("Meta status endpoint reports publishing disabled until OAuth storage is implemented", async (t) => {
+test("Meta status endpoint reports storage missing and keeps publishing disabled without Hyperdrive", async (t) => {
   t.mock.method(globalThis, "fetch", async () =>
     new Response(JSON.stringify({ result: 1 }), {
       status: 200,
