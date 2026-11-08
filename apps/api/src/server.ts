@@ -15,7 +15,7 @@ const envSchema = z.object({
   META_CONFIG_ID: z.string().optional(),
   META_ACCESS_TOKEN: z.string().optional(),
   META_CONNECTION_TEST_KEY: z.string().optional(),
-  META_GRAPH_API_VERSION: z.string().regex(/^v\\d+\\.\\d+$/).default("v27.0"),
+  META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v27.0"),
   META_OAUTH_REDIRECT_URI: z.string().optional(),
 });
 
