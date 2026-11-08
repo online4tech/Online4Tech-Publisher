@@ -31,7 +31,7 @@ app.get("/api/health", async () => ({
 
 app.get("/api/ready", async (_request, reply) => {
   try {
-    await prisma.$queryRaw\`SELECT 1\`;
+    await prisma.$connect();
     return { status: "ready", database: "connected" };
   } catch (error) {
     app.log.error({ err: error }, "Database readiness check failed");
