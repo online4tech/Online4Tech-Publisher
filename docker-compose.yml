@@ -56,6 +56,8 @@ services:
       NODE_ENV: development
       PORT: 4000
       APP_URL: ${APP_URL:-http://localhost:5173}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/online4tech_publisher
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
