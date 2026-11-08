@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import Redis from "ioredis";
@@ -218,7 +218,7 @@ const META_REQUIRED_PERMISSIONS = [
   "instagram_content_publish",
 ] as const;
 
-function metaRedirect(reply: Parameters<typeof app.get>[1] extends never ? never : any, status: "connected" | "error", reason?: string, missing?: string[]) {
+function metaRedirect(reply: FastifyReply, status: "connected" | "error", reason?: string, missing?: string[]) {
   const target = new URL("/", env.APP_URL);
   target.searchParams.set("meta", status);
   if (reason) target.searchParams.set("reason", reason);
