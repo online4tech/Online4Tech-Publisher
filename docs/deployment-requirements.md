@@ -71,3 +71,17 @@ These containers are a local development/staging scaffold, not a production-hard
 - `GET http://localhost:4000/api/ready` should return `status: ready` when PostgreSQL is available.
 - The worker logs should report a successful Redis connection.
 - No publishing action should run in this stage.
+
+
+## CI runtime verification
+
+The GitHub Actions run for the current feature branch successfully:
+- Installed workspace dependencies and generated Prisma Client.
+- Passed TypeScript checks and workspace build.
+- Validated the Docker Compose configuration.
+- Built the API and worker container images.
+- Started PostgreSQL, Redis, API, and worker containers.
+- Confirmed the API database readiness endpoint and the worker's Redis connection.
+- Shut down the local test services after the smoke test.
+
+This is a CI-hosted smoke test, not a deployment to a public hosting provider and not a live Meta API acceptance test.
