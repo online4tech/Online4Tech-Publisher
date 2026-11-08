@@ -7,7 +7,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/security/token-vault.test.ts"
+    "test": "tsx --test src/security/token-vault.test.ts src/security/admin-auth.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "11.0.1",
