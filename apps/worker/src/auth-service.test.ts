@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createHash, randomBytes, scryptSync } from "node:crypto";
+import { createHash, randomBytes, pbkdf2Sync } from "node:crypto";
 import { createAuthService, ADMIN_SESSION_TTL_SECONDS, type AuthStore } from "./auth-service.js";
 
 class MemoryStore implements AuthStore {
@@ -28,7 +28,7 @@ class MemoryStore implements AuthStore {
 
 function passwordHash(password: string) {
   const salt = randomBytes(16);
-  return `scrypt$${salt.toString("base64url")}$${scryptSync(password, salt, 64).toString("base64url")}`;
+  return `pbkdf2-sha256$600000${salt.toString("base64url")}${pbkdf2Sync(password, salt, 600_000, 64, "sha256").toString("base64url")}`;
 }
 
 test("login creates an opaque 8-hour session and verifies it", async () => {
