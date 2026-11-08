@@ -57,3 +57,17 @@ The OAuth redirect URI configured at Meta must exactly match the backend callbac
 ## Current status
 
 No hosting provider has been selected and no production service is deployed. The temporary Meta token-test endpoint is disabled by default and deliberately unavailable in production.
+
+
+## Local container status
+
+The repository now includes Dockerfiles for the API and worker and a Compose profile that starts PostgreSQL, Redis, MinIO, API, and worker together. The API is bound to localhost port 4000. The worker connects to Redis and remains running, but does not consume publishing jobs yet.
+
+These containers are a local development/staging scaffold, not a production-hardened release image. Before production, create a compiled, minimal runtime image; run migrations as a controlled release step; use managed/private data services; add authenticated admin access; and implement the actual queue processor with idempotent publish/reconciliation behavior.
+
+## Local smoke checks
+
+- `GET http://localhost:4000/api/health` should return `status: ok`.
+- `GET http://localhost:4000/api/ready` should return `status: ready` when PostgreSQL is available.
+- The worker logs should report a successful Redis connection.
+- No publishing action should run in this stage.
