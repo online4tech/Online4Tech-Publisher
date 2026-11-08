@@ -34,6 +34,7 @@ export async function verifyAdminPassword(password: string, encodedHash: string)
     const salt = Buffer.from(saltText, "base64url");
     const expected = Buffer.from(hashText, "base64url");
     if (salt.length < 16 || salt.length > 64 || expected.length !== 64) return false;
+    if (salt.toString("base64url") !== saltText || expected.toString("base64url") !== hashText) return false;
     const key = await crypto.subtle.importKey(
       "raw",
       new TextEncoder().encode(password),
