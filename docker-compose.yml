@@ -56,8 +56,8 @@ services:
       NODE_ENV: development
       PORT: 4000
       APP_URL: ${APP_URL:-http://localhost:5173}
+      REDIS_URL: redis://redis:6379
       ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/online4tech_publisher
       META_APP_ID: ${META_APP_ID:-}
       META_APP_SECRET: ${META_APP_SECRET:-}
@@ -71,6 +71,8 @@ services:
       - "127.0.0.1:4000:4000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
