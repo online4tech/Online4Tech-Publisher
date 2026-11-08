@@ -6,7 +6,9 @@ export interface WorkerEnv {
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
   META_APP_ID?: string;
+  META_APP_SECRET?: string;
   META_CONFIG_ID?: string;
+  TOKEN_ENCRYPTION_KEY?: string;
   META_GRAPH_API_VERSION?: string;
   META_OAUTH_REDIRECT_URI?: string;
   APP_ORIGIN?: string;
@@ -80,6 +82,39 @@ export default {
       try {
         await auth.logout(token);
         return json({ authenticated: false }, 200, { "Set-Cookie": clearCookie() });
+      } catch {
+        return json({ error: "SESSION_STORE_UNAVAILABLE" }, 503);
+      }
+    }
+
+    if (path === "/api/admin/meta/status" && request.method === "GET") {
+      try {
+        if (!(await auth.verify(token))) return json({ error: "ADMIN_AUTH_REQUIRED" }, 401);
+        const oauthConfigured = Boolean(
+          env.META_APP_ID &&
+          env.META_APP_SECRET &&
+          env.META_CONFIG_ID &&
+          env.META_OAUTH_REDIRECT_URI &&
+          env.TOKEN_ENCRYPTION_KEY
+        );
+        return json({
+          provider: "meta",
+          oauthConfigured,
+          connected: false,
+          connectionStatus: "not_connected",
+          grantedPermissions: [],
+          missingPermissions: [
+            "pages_show_list",
+            "pages_read_engagement",
+            "pages_manage_posts",
+            "instagram_basic",
+            "instagram_content_publish"
+          ],
+          facebookReady: false,
+          instagramReady: false,
+          publishingEnabled: false,
+          accounts: []
+        });
       } catch {
         return json({ error: "SESSION_STORE_UNAVAILABLE" }, 503);
       }
