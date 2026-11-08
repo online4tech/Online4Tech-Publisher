@@ -1,0 +1,12 @@
+name = "online4tech-publisher-staging"
+main = "src/http.ts"
+compatibility_date = "2026-11-08"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+META_GRAPH_API_VERSION = "v27.0"
