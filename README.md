@@ -29,6 +29,6 @@
 - [ ] اختبار النشر الحقيقي قبل الإطلاق.
 
 ## البدء
-راجع [وثيقة المعمارية](docs/architecture.md) و[قائمة تجهيز Meta](docs/meta-integration-checklist.md).
+راجع [وثيقة المعمارية](docs/architecture.md) و[قائمة تجهيز Meta](docs/meta-integration-checklist.md) و[قرارات اكتشاف Meta](docs/meta-api-decisions.md).
 
 لا تضع App Secret أو Access Token أو كلمات مرور داخل المستودع. استخدم متغيرات البيئة في بيئة التشغيل فقط.
