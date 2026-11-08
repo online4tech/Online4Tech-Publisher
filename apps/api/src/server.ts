@@ -269,7 +269,7 @@ app.get("/api/admin/meta/oauth/start", async (request, reply) => {
   return reply.redirect(authorize.toString());
 });
 
-app.get("/api/meta/oauth/callback", async (request, reply) => {
+app.get("/api/meta/oauth/callback", { logLevel: "silent" }, async (request, reply) => {
   const query = request.query as { state?: string; code?: string; error?: string };
   if (!query.state || !/^[A-Za-z0-9_-]{40,64}$/.test(query.state)) {
     return metaRedirect(reply, "error", "invalid_state");
