@@ -16,7 +16,7 @@ test("token vault rejects tampered ciphertext and invalid keys", () => {
   const vault = createTokenVault(key);
   const envelope = vault.encrypt("test-meta-access-token");
   const parts = envelope.split(".");
-  parts[3] = parts[3].slice(0, -1) + (parts[3].endsWith("A") ? "B" : "A");
+  parts[3] = (parts[3][0] === "A" ? "B" : "A") + parts[3].slice(1);
   assert.throws(() => vault.decrypt(parts.join(".")), /could not be decrypted/);
   assert.throws(() => createTokenVault("not-a-valid-key"), /32-byte key/);
 });
