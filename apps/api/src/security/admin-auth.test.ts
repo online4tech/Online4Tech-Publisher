@@ -28,7 +28,9 @@ test("signed session validates and expires", () => {
 
 test("session rejects tampering and a different signing key", () => {
   const token = createAdminSession(secret, now);
-  const changed = `${token.slice(0, -1)}x`;
+  const [payload, signature] = token.split(".");
+  const changedSignature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+  const changed = `${payload}.${changedSignature}`;
   assert.equal(verifyAdminSession(changed, secret, now), false);
   assert.equal(verifyAdminSession(token, Buffer.alloc(32, 8).toString("base64"), now), false);
 });
