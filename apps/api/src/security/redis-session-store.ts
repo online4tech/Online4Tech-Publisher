@@ -7,9 +7,7 @@ const SESSION_TTL_SECONDS = 8 * 60 * 60;
 
 const RATE_LIMIT_SCRIPT = `
 local count = redis.call("INCR", KEYS[1])
-if count == 1 then
-  redis.call("PEXPIRE", KEYS[1], ARGV[1])
-end
+if count == 1 then redis.call("PEXPIRE", KEYS[1], ARGV[1]) end
 local ttl = redis.call("PTTL", KEYS[1])
 if ttl < 0 then
   redis.call("PEXPIRE", KEYS[1], ARGV[1])
@@ -18,30 +16,30 @@ end
 return { count, ttl }
 `;
 
-function digest(value: string): string {
+export function hashAdminSessionToken(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
-/**
- * Redis-backed opaque admin sessions and shared login throttling.
- * Only a SHA-256 digest of the browser bearer token is stored in Redis.
- */
+function digest(value: string): string {
+  return hashAdminSessionToken(value);
+}
+
 export function createRedisSessionStore(redis: Redis) {
   return {
     async create(): Promise<string> {
       const token = randomBytes(32).toString("base64url");
-      await redis.set(
-        SESSION_PREFIX + digest(token),
-        "1",
-        "EX",
-        SESSION_TTL_SECONDS,
-      );
+      await redis.set(SESSION_PREFIX + digest(token), "1", "EX", SESSION_TTL_SECONDS);
       return token;
     },
 
     async verify(token: string | undefined): Promise<boolean> {
       if (!token || token.length > 128) return false;
       return (await redis.exists(SESSION_PREFIX + digest(token))) === 1;
+    },
+
+    async verifyDigest(sessionDigest: string): Promise<boolean> {
+      if (!/^[a-f0-9]{64}$/.test(sessionDigest)) return false;
+      return (await redis.exists(SESSION_PREFIX + sessionDigest)) === 1;
     },
 
     async revoke(token: string | undefined): Promise<void> {
@@ -54,11 +52,10 @@ export function createRedisSessionStore(redis: Redis) {
       limit: number,
       windowMs: number,
     ): Promise<{ allowed: boolean; remaining: number; retryAfterMs: number }> {
-      const safeIdentity = digest(identity);
       const result = await redis.eval(
         RATE_LIMIT_SCRIPT,
         1,
-        RATE_PREFIX + safeIdentity,
+        RATE_PREFIX + digest(identity),
         String(windowMs),
       ) as [number, number];
       const count = Number(result[0]);
