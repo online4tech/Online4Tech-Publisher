@@ -228,7 +228,7 @@ function metaRedirect(reply: FastifyReply, status: "connected" | "error", reason
 
 async function metaGraphGet<T>(path: string, token: string): Promise<T> {
   const response = await fetch(
-    `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/${path}`,
+    `https://graph.facebook.com/${env.META_GRAPH_API_VERSION}/${path.replace(/^\\//, "")}`,
     {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
