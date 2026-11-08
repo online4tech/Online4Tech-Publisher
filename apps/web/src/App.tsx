@@ -1,88 +1,3 @@
-type AuthState = "checking" | "signed-out" | "signed-in" | "unavailable";
-
-export default function App() {
-  const [auth, setAuth] = useState<AuthState>("checking");
-  const [message, setMessage] = useState("");
-
-  const checkSession = async () => {
-    try {
-      const response = await fetch("/api/admin/session", { credentials: "include" });
-      setAuth(response.ok ? "signed-in" : response.status === 401 ? "signed-out" : "unavailable");
-    } catch {
-      setAuth("unavailable");
-    }
-  };
-
-  useEffect(() => { void checkSession(); }, []);
-
-  const logout = async () => {
-    try {
-      await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
-    } finally {
-      setAuth("signed-out");
-      setMessage("");
-    }
-  };
-
-  if (auth === "checking") return <AuthLoading />;
-  if (auth === "unavailable") return <AuthUnavailable onRetry={checkSession} />;
-  if (auth === "signed-out") return <LoginScreen onSuccess={() => { setMessage(""); setAuth("signed-in"); }} />;
-  return <Dashboard onLogout={logout} />;
-}
-
-function AuthLoading() {
-  return <div className="auth-shell"><div className="auth-card"><div className="auth-logo">O4T</div><div className="auth-spinner"/><b>جاري التحقق من جلسة الدخول</b><p>لحظة واحدة...</p></div></div>;
-}
-
-function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
-  return <div className="auth-shell"><div className="auth-card"><div className="auth-logo">O4T</div><div className="auth-symbol warning"><CircleAlert size={24}/></div><h1>مش قادرين نوصل للخادم</h1><p>تأكد إن API شغّال، وبعدها جرّب تاني.</p><button className="primary-btn auth-submit" onClick={onRetry}>إعادة المحاولة</button></div></div>;
-}
-
-function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!password || busy) return;
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/admin/login", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const result = await response.json().catch(() => ({})) as { message?: string };
-      if (!response.ok) {
-        setError(result.message ?? "تعذر تسجيل الدخول. راجع الإعدادات وحاول مرة أخرى.");
-        return;
-      }
-      setPassword("");
-      onSuccess();
-    } catch {
-      setError("تعذر الاتصال بالخادم. تأكد إنه شغّال وحاول تاني.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return <div className="auth-shell"><div className="auth-card">
-    <div className="auth-brand"><div className="auth-logo">O4T</div><div><b>Online4Tech</b><small>Publisher Studio</small></div></div>
-    <div className="auth-symbol"><LockKeyhole size={23}/></div>
-    <div className="auth-heading"><h1>تسجيل دخول الإدارة</h1><p>سجّل دخولك للوصول إلى لوحة إدارة المحتوى.</p></div>
-    <form onSubmit={submit} className="auth-form">
-      <label htmlFor="admin-password">كلمة مرور الإدارة</label>
-      <input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="اكتب كلمة المرور" required maxLength={256} />
-      {error && <div className="auth-error" role="alert"><CircleAlert size={15}/>{error}</div>}
-      <button className="primary-btn auth-submit" type="submit" disabled={busy || !password}>{busy ? "جاري التحقق..." : "دخول آمن"}<ChevronLeft size={17}/></button>
-    </form>
-    <div className="auth-foot"><ShieldCheck size={15}/> جلسة محمية وتنتهي تلقائيًا بعد 8 ساعات</div>
-  </div></div>;
-}
-
 import { useEffect, useState, type ReactNode } from "react";
 import { Activity, CalendarDays, CheckCircle2, ChevronLeft, Clock3, FileImage, FolderOpen, Instagram, LayoutDashboard, Link2, ListChecks, Menu, MessageSquareText, Plus, Settings2, ShieldCheck, Sparkles, TrendingUp, X, Facebook, CircleAlert } from "lucide-react";
 
@@ -96,7 +11,7 @@ const navItems = [
   { label: "التحليلات", icon: TrendingUp },
 ];
 
-function Dashboard({ onLogout }: { onLogout: () => void }) {
+export default function App() {
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
@@ -115,7 +30,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     {menuOpen&&<button className="mobile-scrim" onClick={()=>setMenuOpen(false)} aria-label="إغلاق القائمة"/>}
     <main className="main-content">
       <header className="topbar"><div className="topbar-start"><button className="icon-btn mobile-menu" onClick={()=>setMenuOpen(true)} aria-label="فتح القائمة"><Menu size={20}/></button><div className="breadcrumb">مساحة العمل <ChevronLeft size={14}/> <b>لوحة التحكم</b></div></div>
-        <div className="topbar-actions"><span className="timezone"><Clock3 size={15}/> توقيت القاهرة</span><div className="system-status"><span className={`status-dot ${health}`}/>{health==="online"?"الخادم متصل":health==="offline"?"الخادم غير متصل":"جاري الفحص"}</div><button className="logout-btn" onClick={onLogout}><LogOut size={15}/> خروج</button><div className="avatar small-avatar">O</div></div>
+        <div className="topbar-actions"><span className="timezone"><Clock3 size={15}/> توقيت القاهرة</span><div className="system-status"><span className={`status-dot ${health}`}/>{health==="online"?"الخادم متصل":health==="offline"?"الخادم غير متصل":"جاري الفحص"}</div><div className="avatar small-avatar">O</div></div>
       </header>
       <div className="page-wrap">
         <section className="welcome-row"><div><div className="eyebrow"><Sparkles size={14}/> مركز إدارة المحتوى</div><h1>كل محتواك… في مكان واحد.</h1><p>جهّز منشوراتك، نظّم حملاتك، وتابع النشر على منصات Meta من لوحة واحدة.</p></div><button className="primary-btn" onClick={()=>window.alert("محرر المنشورات سيتم تفعيله في المرحلة التالية.")}><Plus size={18}/> إنشاء منشور جديد</button></section>
