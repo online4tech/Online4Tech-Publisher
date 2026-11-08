@@ -39,7 +39,7 @@ function finish(cancelled = false) {
     "Copy this value directly into the Cloudflare Worker secret ADMIN_PASSWORD_HASH. Do not commit it or send it in chat:\n",
   );
   process.stdout.write(
-    `pbkdf2-sha256$${iterations}$${salt.toString("base64url")}$${hash.toString("base64url")}\n`,
+    "pbkdf2-sha256$" + iterations + "$" + salt.toString("base64url") + "$" + hash.toString("base64url") + "\n",
   );
 }
 
