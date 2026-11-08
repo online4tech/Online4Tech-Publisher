@@ -43,6 +43,21 @@ function sameOrigin(request: Request, env: WorkerEnv) {
   return !origin || origin === expected;
 }
 
+function isValidMetaRedirect(request: Request, env: WorkerEnv): boolean {
+  if (!env.META_OAUTH_REDIRECT_URI) return false;
+  try {
+    const redirect = new URL(env.META_OAUTH_REDIRECT_URI);
+    const expectedOrigin = env.APP_ORIGIN ? new URL(env.APP_ORIGIN).origin : new URL(request.url).origin;
+    return redirect.protocol === "https:"
+      && redirect.origin === expectedOrigin
+      && redirect.pathname === "/api/meta/oauth/callback"
+      && !redirect.search
+      && !redirect.hash;
+  } catch {
+    return false;
+  }
+}
+
 const META_REQUIRED_PERMISSIONS = [
   "pages_show_list",
   "pages_read_engagement",
@@ -140,7 +155,7 @@ export default {
         if (!(await auth.verify(token))) return json({ error: "ADMIN_AUTH_REQUIRED" }, 401);
         const oauthConfigured = Boolean(
           env.META_APP_ID && env.META_APP_SECRET && env.META_CONFIG_ID &&
-          env.META_OAUTH_REDIRECT_URI && env.TOKEN_ENCRYPTION_KEY && env.HYPERDRIVE
+          env.META_OAUTH_REDIRECT_URI && isValidMetaRedirect(request, env) && env.TOKEN_ENCRYPTION_KEY && env.HYPERDRIVE
         );
         if (!env.HYPERDRIVE) return json(emptyMetaStatus(false, "storage_not_configured"));
         const prisma = createWorkerPrismaClient(env.HYPERDRIVE.connectionString);
@@ -190,7 +205,7 @@ export default {
 
     if (path === "/api/admin/meta/oauth/start" && request.method === "GET") {
       if (!sameOrigin(request, env)) return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
-      if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID || !env.META_OAUTH_REDIRECT_URI || !env.TOKEN_ENCRYPTION_KEY || !env.HYPERDRIVE) {
+      if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID || !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY || !env.HYPERDRIVE) {
         return json({ error: "META_OAUTH_NOT_CONFIGURED" }, 503);
       }
       try {
@@ -223,7 +238,7 @@ export default {
       }
       if (
         !env.META_APP_ID || !env.META_APP_SECRET || !env.META_CONFIG_ID ||
-        !env.META_OAUTH_REDIRECT_URI || !env.TOKEN_ENCRYPTION_KEY ||
+        !isValidMetaRedirect(request, env) || !env.TOKEN_ENCRYPTION_KEY ||
         !env.HYPERDRIVE
       ) {
         return redirectToApp(request, env, "error", "server_configuration_incomplete");
