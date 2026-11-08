@@ -85,11 +85,15 @@ export function createAuthService(store: AuthStore) {
       return { ok: true as const, state };
     },
 
-    async consumeOAuthState(state: string | undefined) {
-      if (!state || !/^[A-Za-z0-9_-]{40,64}$/.test(state)) return false;
+    async consumeOAuthStateSession(state: string | undefined): Promise<string | null> {
+      if (!state || !/^[A-Za-z0-9_-]{40,64}$/.test(state)) return null;
       const digest = await store.take(OAUTH_PREFIX + sha256(state));
-      if (!digest || !/^[a-f0-9]{64}$/.test(digest)) return false;
-      return store.exists(SESSION_PREFIX + digest);
+      if (!digest || !/^[a-f0-9]{64}$/.test(digest)) return null;
+      return (await store.exists(SESSION_PREFIX + digest)) ? digest : null;
+    },
+
+    async consumeOAuthState(state: string | undefined) {
+      return (await this.consumeOAuthStateSession(state)) !== null;
     },
   };
 }
