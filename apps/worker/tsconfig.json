@@ -1,5 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "outDir": "dist", "rootDir": "src", "noEmit": true },
-  "include": ["src"]
+  "compilerOptions": {
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": [
+    "src/http.ts",
+    "src/auth-service.ts",
+    "src/upstash-store.ts"
+  ]
 }
