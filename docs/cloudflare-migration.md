@@ -54,9 +54,10 @@ No secrets, access tokens, database URLs, or encryption keys belong in Git.
 ### Stage 2 — data access
 
 - [x] Add Prisma 6.19 PostgreSQL driver adapter dependencies and a Hyperdrive-backed Worker client factory.
-- [ ] Configure Hyperdrive without committing its ID or database credentials.
-- [ ] Test Supabase Session Pooler connectivity, TLS, Prisma transactions,
-      and existing migrations in staging.
+- [x] Create the initial Supabase schema (12 backend-only tables), enable RLS, revoke public/anon/authenticated table access, and add missing foreign-key indexes.
+- [x] Track the applied SQL in `supabase/migrations/`; Supabase migration history is the source of truth for this Worker database. Do not run `prisma migrate deploy` against this database until a deliberate Prisma baseline is established.
+- [ ] Configure a Cloudflare Hyperdrive binding without committing its ID or database credentials.
+- [ ] Test Supabase Session Pooler connectivity, TLS, Prisma transactions, and real database reads from `wrangler dev`/staging.
 - [ ] Keep the Node-based local development adapter working where practical.
 
 ### Stage 3 — sessions and OAuth
@@ -112,3 +113,12 @@ account limits before production use.
   https://developers.cloudflare.com/workers/databases/third-party-integrations/upstash/
 - Supabase signed uploads:
   https://supabase.com/docs/guides/storage/uploads/standard-uploads
+
+
+## Current staging prerequisites
+
+The Publisher Supabase project is initialized with the Prisma-compatible schema and two Supabase migrations. The 12 application tables have RLS enabled and no grants to `anon`, `authenticated`, or `PUBLIC`; the Worker connects through its privileged server-side database connection. No Meta tokens or user records were inserted during schema setup.
+
+Before deploying the Worker, create a Cloudflare Hyperdrive configuration pointing to the Publisher project's Supabase Session Pooler connection string (keep the connection string private), then bind it as `HYPERDRIVE`. The resulting Hyperdrive ID is deployment configuration, not a secret. Required Worker secrets are `ADMIN_PASSWORD_HASH`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_OAUTH_REDIRECT_URI`, and `TOKEN_ENCRYPTION_KEY`. Set `APP_ORIGIN` to the final `workers.dev` origin and `ADMIN_USER_EMAIL` to the intended admin email. Never paste secret values into GitHub source files or chat.
+
+The OAuth callback now exchanges the authorization code, checks granted permissions, discovers Facebook Pages and linked Instagram professional accounts, encrypts tokens using the same AES-256-GCM envelope as the Node API, and persists records in a transaction. Publishing remains disabled. Runtime equivalence is not yet proven until Hyperdrive is bound and the Worker is tested against Meta in staging.
