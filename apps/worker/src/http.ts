@@ -144,7 +144,9 @@ export default {
         const origin = env.APP_ORIGIN ? new URL(env.APP_ORIGIN).origin : url.origin;
         const loginUrl = new URL("/api/admin/magic-login", origin);
         loginUrl.searchParams.set("token", created.token);
-        const emailResponse = await fetch("https://api.resend.com/emails", {
+        let emailResponse: Response;
+        try {
+          emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${env.RESEND_API_KEY}`,
@@ -158,7 +160,11 @@ export default {
             html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#172033"><h2>تسجيل دخول Online4Tech Publisher</h2><p>اضغط الرابط التالي لتأكيد الدخول. الرابط صالح لمدة 10 دقائق ولمرة واحدة.</p><p><a href="${loginUrl.toString()}">تأكيد تسجيل الدخول</a></p><p>إذا لم تطلب تسجيل الدخول، تجاهل هذه الرسالة.</p></div>`,
           }),
           signal: AbortSignal.timeout(15_000),
-        });
+          });
+        } catch {
+          await auth.revokeMagicLink(created.token);
+          throw new Error("LOGIN_EMAIL_SEND_FAILED");
+        }
         if (!emailResponse.ok) {
           await auth.revokeMagicLink(created.token);
           console.error("Resend rejected admin login email", { status: emailResponse.status });
