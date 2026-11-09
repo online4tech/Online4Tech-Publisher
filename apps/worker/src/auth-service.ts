@@ -58,7 +58,10 @@ function passwordHashDiagnostics(encodedHash: string) {
 }
 
 export async function verifyAdminPassword(password: string, encodedHash: string): Promise<boolean> {
-  const [scheme, iterationsText, saltText, hashText, ...extra] = encodedHash.split("$");
+  // Cloudflare secret values may retain a trailing newline when copied from a terminal.
+  // Whitespace around the encoded hash is configuration formatting, not part of the hash.
+  const normalizedHash = encodedHash.trim();
+  const [scheme, iterationsText, saltText, hashText, ...extra] = normalizedHash.split("$");
   if (scheme !== "pbkdf2-sha256" || !iterationsText || !saltText || !hashText || extra.length) return false;
   try {
     const iterations = Number(iterationsText);
