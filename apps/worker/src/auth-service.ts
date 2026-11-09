@@ -25,6 +25,38 @@ function safeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return difference === 0;
 }
 
+function passwordHashDiagnostics(encodedHash: string) {
+  const parts = encodedHash.split("$");
+  const [scheme, iterationsText, saltText, hashText, ...extra] = parts;
+  let saltLength = 0;
+  let digestLength = 0;
+  let canonicalEncoding = false;
+  try {
+    const salt = Buffer.from(saltText ?? "", "base64url");
+    const digest = Buffer.from(hashText ?? "", "base64url");
+    saltLength = salt.length;
+    digestLength = digest.length;
+    canonicalEncoding = salt.toString("base64url") === saltText && digest.toString("base64url") === hashText;
+  } catch {
+    // Keep diagnostics limited to structural validity only.
+  }
+  const iterations = Number(iterationsText);
+  const formatValid =
+    scheme === "pbkdf2-sha256" &&
+    Number.isSafeInteger(iterations) && iterations >= 600_000 && iterations <= 1_000_000 &&
+    saltLength >= 16 && saltLength <= 64 &&
+    digestLength === 64 && canonicalEncoding && extra.length === 0;
+  return {
+    hasLeadingOrTrailingWhitespace: encodedHash !== encodedHash.trim(),
+    schemeValid: scheme === "pbkdf2-sha256",
+    iterationsValid: Number.isSafeInteger(iterations) && iterations >= 600_000 && iterations <= 1_000_000,
+    saltLength,
+    digestLength,
+    canonicalEncoding,
+    formatValid,
+  };
+}
+
 export async function verifyAdminPassword(password: string, encodedHash: string): Promise<boolean> {
   const [scheme, iterationsText, saltText, hashText, ...extra] = encodedHash.split("$");
   if (scheme !== "pbkdf2-sha256" || !iterationsText || !saltText || !hashText || extra.length) return false;
@@ -79,6 +111,7 @@ export function createAuthService(store: AuthStore) {
         return { ok: false as const, status: 429, error: "LOGIN_RATE_LIMITED", retryAfterMs: Math.max(0, rate.ttlMs) };
       }
       if (!(await verifyAdminPassword(password, passwordHash))) {
+        console.warn("Admin password verification failed", passwordHashDiagnostics(passwordHash));
         return { ok: false as const, status: 401, error: "INVALID_CREDENTIALS" };
       }
       await store.delete(RATE_PREFIX + sha256(ip));
