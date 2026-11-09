@@ -2,6 +2,16 @@ name: Deploy Publisher Worker (staging)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/worker/**'
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - '.github/workflows/deploy-worker.yml'
 
 permissions:
   contents: read
