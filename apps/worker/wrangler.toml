@@ -1,4 +1,5 @@
 name = "online4tech-publisher-staging"
+keep_vars = true
 main = "src/http.ts"
 compatibility_date = "2026-11-08"
 compatibility_flags = ["nodejs_compat"]
