@@ -1,10 +1,10 @@
-import { createAuthService, passwordHashDiagnostics, readSessionCookie, sessionCookie } from "./auth-service.js";
+import { createAuthService, readSessionCookie, sessionCookie } from "./auth-service.js";
 import { UpstashAuthStore } from "./upstash-store.js";
 import { createWorkerPrismaClient } from "@o4t/db/worker";
 import { createTokenVault } from "./token-vault.js";
 
 export interface WorkerEnv {
-  ADMIN_PASSWORD_HASH?: string;
+  RESEND_API_KEY?: string;
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
   META_APP_ID?: string;
@@ -109,14 +109,6 @@ export default {
       return json({ status: "ok", service: "online4tech-publisher-worker" });
     }
 
-    if (path === "/api/health/auth-config" && request.method === "GET") {
-      const configured = typeof env.ADMIN_PASSWORD_HASH === "string" && env.ADMIN_PASSWORD_HASH.trim().length > 0;
-      return json({
-        configured,
-        ...(configured ? { hash: passwordHashDiagnostics(env.ADMIN_PASSWORD_HASH!) } : {}),
-      });
-    }
-
     if (!path.startsWith("/api/")) {
       return env.ASSETS ? env.ASSETS.fetch(request) : json({ error: "NOT_FOUND" }, 404);
     }
@@ -125,24 +117,70 @@ export default {
     const auth = createAuthService(store);
     const token = readSessionCookie(request.headers.get("Cookie"));
 
-    if (path === "/api/admin/login" && request.method === "POST") {
+    if (path === "/api/admin/magic-login" && request.method === "GET") {
+      const page = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>تأكيد تسجيل الدخول - Online4Tech</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#071426;color:#edf4ff;font-family:Arial,sans-serif}.card{width:min(420px,calc(100% - 40px));box-sizing:border-box;padding:32px;border:1px solid #263e5e;border-radius:20px;background:#10223a;text-align:center}.mark{font-weight:800;color:#f4c542;font-size:25px}h1{font-size:22px}p{color:#b6c6da;line-height:1.7}button{border:0;border-radius:10px;padding:13px 22px;background:#e8b82d;color:#172033;font-weight:700;font-size:15px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}#status{margin-top:14px;min-height:24px}</style></head><body><main class="card"><div class="mark">O4T</div><h1>تأكيد تسجيل الدخول</h1><p>اضغط الزر لتأكيد دخولك إلى لوحة Online4Tech Publisher. الرابط صالح لمرة واحدة ولمدة 10 دقائق.</p><button id="confirm">تأكيد الدخول</button><div id="status" role="status"></div></main><script>const token=new URL(location.href).searchParams.get("token");const button=document.getElementById("confirm");const status=document.getElementById("status");button.addEventListener("click",async()=>{if(!token){status.textContent="الرابط غير صالح أو انتهت صلاحيته.";button.disabled=true;return;}button.disabled=true;status.textContent="جاري تأكيد الدخول...";try{const response=await fetch("/api/admin/magic-login",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});if(!response.ok)throw new Error();status.textContent="تم تأكيد الدخول. جاري فتح اللوحة...";location.replace("/");}catch{status.textContent="الرابط غير صالح أو انتهت صلاحيته. ارجع لصفحة الدخول واطلب رابطًا جديدًا.";button.disabled=false;}});</script></body></html>`;
+      return new Response(page, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, max-age=0",
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+        },
+      });
+    }
+
+    if (path === "/api/admin/request-login-link" && request.method === "POST") {
       if (!sameOrigin(request, env)) return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
-      let body: { password?: unknown };
-      try { body = await request.json() as { password?: unknown }; }
-      catch { return json({ error: "INVALID_REQUEST" }, 400); }
-      if (typeof body.password !== "string") return json({ error: "INVALID_REQUEST" }, 400);
+      if (!env.RESEND_API_KEY || !env.ADMIN_USER_EMAIL) return json({ error: "LOGIN_EMAIL_NOT_CONFIGURED" }, 503);
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       try {
-        const result = await auth.login(body.password, env.ADMIN_PASSWORD_HASH, ip);
-        if (!result.ok) {
-          const headers = result.status === 429 ? { "Retry-After": String(Math.max(1, Math.ceil((result.retryAfterMs ?? 1000) / 1000))) } : undefined;
-          return json({ error: result.error }, result.status, headers);
+        const created = await auth.requestMagicLink(ip);
+        if (!created.ok) {
+          return json({ error: "LOGIN_LINK_RATE_LIMITED" }, created.status, {
+            "Retry-After": String(Math.max(1, Math.ceil((created.retryAfterMs ?? 1000) / 1000))),
+          });
         }
-        return json(
-          { authenticated: true, expiresInSeconds: result.expiresInSeconds },
-          200,
-          { "Set-Cookie": sessionCookie(result.token) },
-        );
+        const origin = env.APP_ORIGIN ? new URL(env.APP_ORIGIN).origin : url.origin;
+        const loginUrl = new URL("/api/admin/magic-login", origin);
+        loginUrl.searchParams.set("token", created.token);
+        const emailResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Online4Tech <onboarding@resend.dev>",
+            to: [env.ADMIN_USER_EMAIL],
+            subject: "رابط الدخول إلى Online4Tech Publisher",
+            text: `استخدم الرابط التالي لتأكيد تسجيل الدخول. الرابط صالح لمدة 10 دقائق ولمرة واحدة:\\n\\n${loginUrl.toString()}\\n\\nإذا لم تطلب تسجيل الدخول، تجاهل هذه الرسالة.`,
+            html: `<div dir="rtl" style="font-family:Arial,sans-serif;line-height:1.8;color:#172033"><h2>تسجيل دخول Online4Tech Publisher</h2><p>اضغط الرابط التالي لتأكيد الدخول. الرابط صالح لمدة 10 دقائق ولمرة واحدة.</p><p><a href="${loginUrl.toString()}">تأكيد تسجيل الدخول</a></p><p>إذا لم تطلب تسجيل الدخول، تجاهل هذه الرسالة.</p></div>`,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!emailResponse.ok) {
+          await auth.revokeMagicLink(created.token);
+          console.error("Resend rejected admin login email", { status: emailResponse.status });
+          return json({ error: "LOGIN_EMAIL_SEND_FAILED" }, 502);
+        }
+        return json({ requested: true });
+      } catch {
+        return json({ error: "LOGIN_LINK_UNAVAILABLE" }, 503);
+      }
+    }
+
+    if (path === "/api/admin/magic-login" && request.method === "POST") {
+      if (!sameOrigin(request, env)) return json({ error: "ORIGIN_NOT_ALLOWED" }, 403);
+      let body: { token?: unknown };
+      try { body = await request.json() as { token?: unknown }; }
+      catch { return json({ error: "INVALID_REQUEST" }, 400); }
+      try {
+        const sessionToken = await auth.consumeMagicLink(body.token);
+        if (!sessionToken) return json({ error: "MAGIC_LINK_INVALID_OR_EXPIRED" }, 401);
+        return json({ authenticated: true, expiresInSeconds: 8 * 60 * 60 }, 200, {
+          "Set-Cookie": sessionCookie(sessionToken),
+        });
       } catch {
         return json({ error: "SESSION_STORE_UNAVAILABLE" }, 503);
       }
