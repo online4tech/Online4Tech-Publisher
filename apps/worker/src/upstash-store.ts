@@ -28,17 +28,37 @@ export class UpstashAuthStore implements AuthStore {
   }
 
   private async command<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(`${this.endpoint}/${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!response.ok) throw new Error("SESSION_STORE_UNAVAILABLE");
-    const payload = await response.json() as { result?: T; error?: string };
-    if (payload.error) throw new Error("SESSION_STORE_UNAVAILABLE");
+    let response: Response;
+    try {
+      response = await fetch(`${this.endpoint}/${path}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      console.error("Upstash REST network failure", error instanceof Error ? error.name : "UnknownError");
+      throw new Error("SESSION_STORE_UNAVAILABLE");
+    }
+
+    const responseText = await response.text();
+    let payload: { result?: T; error?: string };
+    try {
+      payload = JSON.parse(responseText) as { result?: T; error?: string };
+    } catch {
+      console.error("Upstash REST returned invalid JSON", { status: response.status });
+      throw new Error("SESSION_STORE_UNAVAILABLE");
+    }
+
+    if (!response.ok || payload.error) {
+      console.error("Upstash REST command rejected", {
+        status: response.status,
+        error: typeof payload.error === "string" ? payload.error.slice(0, 180) : "No error detail",
+      });
+      throw new Error("SESSION_STORE_UNAVAILABLE");
+    }
     return payload.result as T;
   }
 
