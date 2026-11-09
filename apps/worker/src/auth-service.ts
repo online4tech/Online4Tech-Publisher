@@ -5,6 +5,8 @@ export const LOGIN_LIMIT = 5;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const SESSION_PREFIX = "o4t:admin:session:";
 const RATE_PREFIX = "o4t:admin:login-rate:";
+const MAGIC_PREFIX = "o4t:admin:magic:";
+const MAGIC_RATE_PREFIX = "o4t:admin:magic-rate:";
 const OAUTH_PREFIX = "o4t:meta:oauth:state:";
 const COOKIE_NAME = "o4t_admin_session";
 
@@ -106,6 +108,32 @@ export function sessionCookie(token: string, clear = false): string {
 
 export function createAuthService(store: AuthStore) {
   return {
+    async requestMagicLink(ip: string) {
+      const rate = await store.consume(MAGIC_RATE_PREFIX + sha256(ip), 15 * 60 * 1000);
+      if (rate.count > 3) {
+        return { ok: false as const, status: 429, retryAfterMs: Math.max(0, rate.ttlMs) };
+      }
+      const token = randomBytes(32).toString("base64url");
+      const stored = await store.set(MAGIC_PREFIX + sha256(token), "1", 600, true);
+      if (!stored) return { ok: false as const, status: 503 };
+      return { ok: true as const, token };
+    },
+
+    async revokeMagicLink(token: string) {
+      if (/^[A-Za-z0-9_-]{40,64}$/.test(token)) {
+        await store.delete(MAGIC_PREFIX + sha256(token));
+      }
+    },
+
+    async consumeMagicLink(token: unknown) {
+      if (typeof token !== "string" || !/^[A-Za-z0-9_-]{40,64}$/.test(token)) return null;
+      const marker = await store.take(MAGIC_PREFIX + sha256(token));
+      if (marker !== "1") return null;
+      const sessionToken = randomBytes(32).toString("base64url");
+      await store.set(sessionKey(sessionToken), "1", ADMIN_SESSION_TTL_SECONDS);
+      return sessionToken;
+    },
+
     async login(password: string, passwordHash: string | undefined, ip: string) {
       if (!passwordHash) return { ok: false as const, status: 503, error: "ADMIN_AUTH_NOT_CONFIGURED" };
       if (!password || password.length > 256) return { ok: false as const, status: 400, error: "INVALID_REQUEST" };
