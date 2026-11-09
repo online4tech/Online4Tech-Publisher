@@ -25,7 +25,7 @@ function safeEqual(a: Uint8Array, b: Uint8Array): boolean {
   return difference === 0;
 }
 
-function passwordHashDiagnostics(encodedHash: string) {
+export function passwordHashDiagnostics(encodedHash: string) {
   const parts = encodedHash.split("$");
   const [scheme, iterationsText, saltText, hashText, ...extra] = parts;
   let saltLength = 0;
