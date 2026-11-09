@@ -36,8 +36,8 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/admin/login", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-      const result = await response.json().catch(() => ({})) as { message?: string };
-      if (!response.ok) { setError(result.message ?? "تعذر تسجيل الدخول. راجع الإعدادات وحاول مرة أخرى."); return; }
+      const result = await response.json().catch(() => ({})) as { message?: string; error?: string };
+      if (!response.ok) { setError(result.message ?? (result.error === "INVALID_CREDENTIALS" ? "كلمة المرور غير صحيحة." : "تعذر تسجيل الدخول. راجع الإعدادات وحاول مرة أخرى.")); return; }
       setPassword(""); onSuccess();
     } catch { setError("تعذر الاتصال بالخادم. تأكد إنه شغّال وحاول تاني."); }
     finally { setBusy(false); }
