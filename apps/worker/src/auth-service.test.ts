@@ -85,3 +85,34 @@ test("OAuth state rejects malformed and unknown values", async () => {
   assert.equal(await service.consumeOAuthState("A".repeat(43)), false);
   assert.equal(createHash("sha256").update("sample").digest("hex").length, 64);
 });
+
+test("magic login link creates a one-time 8-hour session", async () => {
+  const store = new MemoryStore();
+  const service = createAuthService(store);
+  const created = await service.requestMagicLink("192.0.2.10");
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  assert.match(created.token, /^[A-Za-z0-9_-]{40,64}$/);
+  const session = await service.consumeMagicLink(created.token);
+  assert.ok(session);
+  assert.equal(await service.verify(session), true);
+  assert.equal(await service.consumeMagicLink(created.token), null);
+});
+
+test("magic login links are rate limited", async () => {
+  const service = createAuthService(new MemoryStore());
+  for (let i = 0; i < 3; i++) assert.equal((await service.requestMagicLink("192.0.2.20")).ok, true);
+  const blocked = await service.requestMagicLink("192.0.2.20");
+  assert.equal(blocked.ok, false);
+  if (!blocked.ok) assert.equal(blocked.status, 429);
+});
+
+test("magic login rejects malformed, unknown, and revoked links", async () => {
+  const service = createAuthService(new MemoryStore());
+  assert.equal(await service.consumeMagicLink("bad"), null);
+  const created = await service.requestMagicLink("192.0.2.30");
+  assert.equal(created.ok, true);
+  if (!created.ok) return;
+  await service.revokeMagicLink(created.token);
+  assert.equal(await service.consumeMagicLink(created.token), null);
+});
