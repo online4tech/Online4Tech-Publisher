@@ -42,6 +42,13 @@ test("login creates an opaque 8-hour session and verifies it", async () => {
   assert.equal(await service.verify(result.token), false);
 });
 
+test("login accepts a password hash copied with surrounding whitespace", async () => {
+  const service = createAuthService(new MemoryStore());
+  const hash = passwordHash("correct password");
+  const result = await service.login("correct password", `\n${hash} \n`, "192.0.2.55");
+  assert.equal(result.ok, true);
+});
+
 test("login rejects invalid credentials and throttles after five attempts", async () => {
   const service = createAuthService(new MemoryStore());
   const hash = passwordHash("correct password");
