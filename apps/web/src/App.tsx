@@ -17,7 +17,7 @@ export default function App() {
   };
   if (auth === "checking") return <AuthLoading />;
   if (auth === "unavailable") return <AuthUnavailable onRetry={checkSession} />;
-  if (auth === "signed-out") return <LoginScreen onSuccess={() => setAuth("signed-in")} />;
+  if (auth === "signed-out") return <LoginScreen />;
   return <Dashboard onLogout={logout} />;
 }
 function AuthLoading() {
@@ -26,7 +26,7 @@ function AuthLoading() {
 function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
   return <div className="auth-shell"><div className="auth-card"><div className="auth-logo">O4T</div><div className="auth-symbol warning"><CircleAlert size={24}/></div><h1>مش قادرين نوصل للخادم</h1><p>تأكد إن API شغّال، وبعدها جرّب تاني.</p><button className="primary-btn auth-submit" onClick={onRetry}>إعادة المحاولة</button></div></div>;
 }
-function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
