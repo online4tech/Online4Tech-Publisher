@@ -58,11 +58,11 @@ export class UpstashAuthStore implements AuthStore {
   }
 
   async consume(key: string, windowMs: number) {
-    const result = await this.command<[number, number]>("eval", [RATE_SCRIPT, 1, key, String(windowMs)]);
+    const result = await this.command<[number, number]>("", ["EVAL", RATE_SCRIPT, "1", key, String(windowMs)]);
     return { count: Number(result[0]), ttlMs: Number(result[1]) };
   }
 
   async take(key: string) {
-    return this.command<string | null>("eval", [TAKE_SCRIPT, 1, key]);
+    return this.command<string | null>("", ["EVAL", TAKE_SCRIPT, "1", key]);
   }
 }
