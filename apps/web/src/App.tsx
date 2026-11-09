@@ -27,27 +27,43 @@ function AuthUnavailable({ onRetry }: { onRetry: () => void }) {
   return <div className="auth-shell"><div className="auth-card"><div className="auth-logo">O4T</div><div className="auth-symbol warning"><CircleAlert size={24}/></div><h1>مش قادرين نوصل للخادم</h1><p>تأكد إن API شغّال، وبعدها جرّب تاني.</p><button className="primary-btn auth-submit" onClick={onRetry}>إعادة المحاولة</button></div></div>;
 }
 function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
-  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!password || busy) return;
+    if (busy) return;
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/admin/login", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-      const result = await response.json().catch(() => ({})) as { message?: string; error?: string };
-      if (!response.ok) { setError(result.message ?? (result.error === "INVALID_CREDENTIALS" ? "كلمة المرور غير صحيحة." : "تعذر تسجيل الدخول. راجع الإعدادات وحاول مرة أخرى.")); return; }
-      setPassword(""); onSuccess();
-    } catch { setError("تعذر الاتصال بالخادم. تأكد إنه شغّال وحاول تاني."); }
-    finally { setBusy(false); }
+      const response = await fetch("/api/admin/request-login-link", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) {
+        setError(result.error === "LOGIN_LINK_RATE_LIMITED"
+          ? "طلبت روابط دخول كتير. استنى شوية وجرب تاني."
+          : "تعذر إرسال رابط الدخول. راجع إعدادات البريد وحاول مرة أخرى.");
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError("تعذر الاتصال بالخادم. تأكد إنه شغّال وحاول تاني.");
+    } finally {
+      setBusy(false);
+    }
   };
   return <div className="auth-shell"><div className="auth-card">
     <div className="auth-brand"><div className="auth-logo">O4T</div><div><b>Online4Tech</b><small>Publisher Studio</small></div></div>
     <div className="auth-symbol"><LockKeyhole size={23}/></div>
-    <div className="auth-heading"><h1>تسجيل دخول الإدارة</h1><p>سجّل دخولك للوصول إلى لوحة إدارة المحتوى.</p></div>
-    <form onSubmit={submit} className="auth-form"><label htmlFor="admin-password">كلمة مرور الإدارة</label><input id="admin-password" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="اكتب كلمة المرور" required maxLength={256}/>{error && <div className="auth-error" role="alert"><CircleAlert size={15}/>{error}</div>}<button className="primary-btn auth-submit" type="submit" disabled={busy || !password}>{busy ? "جاري التحقق..." : "دخول آمن"}<ChevronLeft size={17}/></button></form>
-    <div className="auth-foot"><ShieldCheck size={15}/> جلسة محمية وتنتهي تلقائيًا بعد 8 ساعات</div>
+    <div className="auth-heading"><h1>تسجيل دخول الإدارة</h1><p>هنبعت رابط دخول آمن على بريد الإدارة المسجّل.</p></div>
+    {sent ? <div className="auth-success" role="status"><ShieldCheck size={18}/> لو إعدادات البريد سليمة، هيوصلك رابط الدخول خلال دقائق. الرابط صالح 10 دقائق ولمرة واحدة.</div> : <form onSubmit={submit} className="auth-form">
+      {error && <div className="auth-error" role="alert"><CircleAlert size={15}/>{error}</div>}
+      <button className="primary-btn auth-submit" type="submit" disabled={busy}>{busy ? "جاري إرسال الرابط..." : "إرسال رابط الدخول"}<ChevronLeft size={17}/></button>
+    </form>}
+    <div className="auth-foot"><ShieldCheck size={15}/> رابط لمرة واحدة وجلسة تنتهي تلقائيًا بعد 8 ساعات</div>
   </div></div>;
 }
 
