@@ -1,4 +1,4 @@
-import { createAuthService, readSessionCookie, sessionCookie } from "./auth-service.js";
+import { createAuthService, passwordHashDiagnostics, readSessionCookie, sessionCookie } from "./auth-service.js";
 import { UpstashAuthStore } from "./upstash-store.js";
 import { createWorkerPrismaClient } from "@o4t/db/worker";
 import { createTokenVault } from "./token-vault.js";
@@ -107,6 +107,14 @@ export default {
     const path = url.pathname;
     if (path === "/api/health" && request.method === "GET") {
       return json({ status: "ok", service: "online4tech-publisher-worker" });
+    }
+
+    if (path === "/api/health/auth-config" && request.method === "GET") {
+      const configured = typeof env.ADMIN_PASSWORD_HASH === "string" && env.ADMIN_PASSWORD_HASH.trim().length > 0;
+      return json({
+        configured,
+        ...(configured ? { hash: passwordHashDiagnostics(env.ADMIN_PASSWORD_HASH!) } : {}),
+      });
     }
 
     if (!path.startsWith("/api/")) {
